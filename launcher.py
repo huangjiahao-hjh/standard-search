@@ -5,6 +5,7 @@
 """
 
 import os
+import socket
 import sys
 import threading
 import time
@@ -12,14 +13,12 @@ import webbrowser
 
 
 def get_base_dir():
-    """获取程序所在目录（支持 PyInstaller 打包后的路径）。"""
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
 
 def find_app_path(base_dir):
-    """查找 app.py 文件路径。"""
     candidates = [
         os.path.join(base_dir, "app.py"),
         os.path.join(base_dir, "_internal", "app.py"),
@@ -33,8 +32,16 @@ def find_app_path(base_dir):
     return None
 
 
+def find_available_port(start=8501, max_tries=20):
+    """从 start 开始寻找可用端口。"""
+    for port in range(start, start + max_tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", port)) != 0:
+                return port
+    return start
+
+
 def open_browser(url, delay=3):
-    """延迟打开浏览器。"""
     time.sleep(delay)
     webbrowser.open(url)
 
@@ -50,7 +57,7 @@ def main():
         )
         sys.exit(1)
 
-    port = 8501
+    port = find_available_port()
     url = f"http://localhost:{port}"
 
     print("=" * 52)
@@ -58,16 +65,17 @@ def main():
     print("=" * 52)
     print()
     print(f"  正在启动服务...")
+    if port != 8501:
+        print(f"  端口 8501 已被占用，使用端口 {port}")
     print(f"  启动后浏览器将自动打开")
     print(f"  地址：{url}")
     print()
     print("  关闭窗口或按 Ctrl+C 即可停止")
     print("-" * 52)
 
-    # 延迟打开浏览器
     threading.Thread(target=open_browser, args=(url,), daemon=True).start()
 
-    # 直接使用 Streamlit CLI 启动，避免 PyInstaller 下 subprocess 无限重启动
+    # 直接调用 Streamlit CLI，避免 PyInstaller 下 subprocess 无限重启动
     from streamlit.web import cli as st_cli
 
     sys.argv = [
@@ -93,7 +101,7 @@ def main():
         pass
     except Exception as e:
         print(f"\n启动失败: {e}")
-        print("请尝试关闭其他程序后重试，或检查端口 8501 是否被占用。")
+        print("请尝试关闭其他程序后重试。")
         input("\n按 Enter 退出...")
 
 

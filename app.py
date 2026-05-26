@@ -3,15 +3,19 @@
 全国标准信息检索平台 - 可视化 Web 应用 (Streamlit)
 """
 
-import streamlit as st
-import pandas as pd
+import io
 import time
+from typing import Dict
+
+import pandas as pd
+import streamlit as st
 from scraper import (
-    fetch_tc_committees,
-    iter_tc_results,
-    iter_keyword_results,
     CATEGORY_CONFIG,
-    ALL_FIELDS,
+    fetch_tc_committees,
+    get_search_total,
+    get_tc_search_total,
+    iter_keyword_results,
+    iter_tc_results,
 )
 
 # ── 页面配置 ──────────────────────────────────────────
@@ -22,194 +26,258 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── 样式 ────────────────────────────────────────────
+# ── 中文表头映射 ──────────────────────────────────────
+COLUMN_LABELS: Dict[str, str] = {
+    "keyword": "关键词",
+    "category": "标准类别",
+    "standard_code": "标准号",
+    "standard_name": "标准名称",
+    "standard_nature": "标准性质",
+    "charge_dept": "主管部门",
+    "guikou_unit": "归口单位",
+    "drafting_units": "起草单位",
+    "issue_date": "发布日期",
+    "act_date": "实施日期",
+    "state": "实施状态",
+    "tc_code": "TC编号",
+    "draft_staff": "起草人",
+    "ics": "ICS分类号",
+}
+CAT_NAME_MAP = {k: v["name"] for k, v in CATEGORY_CONFIG.items()}
+
+
+def rename_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """将英文列名映射为中文。"""
+    return df.rename(columns=COLUMN_LABELS)
+
+
+# ── 样式 (Apple 风格) ────────────────────────────────
 st.markdown(
     """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-    * {font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;}
-    .stApp {background: linear-gradient(135deg, #f0f4f8 0%, #e8edf5 100%);}
+    /* ── 全局 ── */
+    .stApp {background: #f5f5f7;}
     .stApp header {display: none;}
 
-    ::-webkit-scrollbar {width: 6px; height: 6px;}
+    ::-webkit-scrollbar {width: 5px; height: 5px;}
     ::-webkit-scrollbar-track {background: transparent;}
-    ::-webkit-scrollbar-thumb {background: #c1c9d6; border-radius: 3px;}
-    ::-webkit-scrollbar-thumb:hover {background: #a0aab8;}
+    ::-webkit-scrollbar-thumb {background: #c7c7cc; border-radius: 3px;}
 
     .main-container {max-width: 1400px; margin: 0 auto; padding: 0 0.5rem;}
 
+    /* ── 顶部横幅 ── */
     .hero {
-        background: linear-gradient(135deg, #0f2b5c 0%, #1a4a8a 40%, #2563eb 70%, #3b82f6 100%);
-        border-radius: 20px; padding: 2.2rem 2.8rem; margin-bottom: 2rem;
-        color: white; position: relative; overflow: hidden;
-        box-shadow: 0 8px 32px rgba(37, 99, 235, 0.25);
+        background: linear-gradient(135deg, #e8ecf4 0%, #f0f4fa 100%);
+        border-radius: 16px;
+        padding: 2rem 2.5rem;
+        margin-bottom: 1.8rem;
+        border: 1px solid rgba(255,255,255,0.8);
     }
-    .hero::before {
-        content: ''; position: absolute; top: -50%; right: -20%;
-        width: 500px; height: 500px;
-        background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%);
-        border-radius: 50%;
-    }
-    .hero::after {
-        content: ''; position: absolute; bottom: -30%; left: 10%;
-        width: 300px; height: 300px;
-        background: radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%);
-        border-radius: 50%;
-    }
-    .hero table {position: relative; z-index: 1;}
     .hero h1 {
-        font-size: 2rem; font-weight: 800; margin: 0 0 0.3rem 0; letter-spacing: 1.5px;
-        background: linear-gradient(90deg, #fff, #bfd8ff);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        background-clip: text;
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        font-size: 1.8rem; font-weight: 700;
+        margin: 0 0 0.2rem 0;
+        color: #1d1d1f;
+        letter-spacing: -0.5px;
     }
-    .hero p {font-size: 0.95rem; margin: 0; opacity: 0.8; font-weight: 300; color: #e0e8ff;}
+    .hero p {
+        font-size: 0.9rem; margin: 0;
+        color: #86868b;
+        font-weight: 400;
+    }
     .hero-icon {
-        font-size: 2.8rem; line-height: 1; display: block; text-align: center;
-        filter: drop-shadow(0 2px 8px rgba(255,255,255,0.2));
+        font-size: 2.4rem; line-height: 1;
+        display: block; text-align: center;
     }
 
+    /* ── 侧边栏 - 毛玻璃效果 ── */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
-        border-right: 1px solid #e5e9f0; padding-top: 1rem;
+        background: rgba(255,255,255,0.72);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-right: 1px solid rgba(0,0,0,0.06);
     }
     [data-testid="stSidebar"] .sidebar-title {
-        font-size: 1.15rem; font-weight: 700; color: #0f2b5c;
-        padding: 0.8rem 0.5rem; display: flex; align-items: center; gap: 0.5rem;
-        border-bottom: 2px solid #eef3fc; margin-bottom: 0.5rem;
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        font-size: 1.1rem; font-weight: 600;
+        color: #1d1d1f;
+        padding: 0.6rem 0.5rem 0.8rem;
+        display: flex; align-items: center; gap: 0.5rem;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
     }
-    [data-testid="stSidebar"] .stRadio > div {gap: 0.2rem;}
+    /* 隐藏侧边栏折叠按钮 */
+    button[data-testid="baseButton-sidebarCollapse"] {display: none !important;}
+    section[data-testid="stSidebar"] > div:first-child {width: 100%;}
+    /* 侧边栏 radio 风格 */
+    [data-testid="stSidebar"] .stRadio > div {gap: 0.15rem;}
     [data-testid="stSidebar"] .stRadio label {
-        padding: 0.6rem 1rem; border-radius: 10px; transition: all 0.2s;
-        font-weight: 500; color: #4b5563;
+        padding: 0.55rem 1rem; border-radius: 8px;
+        transition: all 0.15s;
+        font-size: 0.88rem; font-weight: 500; color: #3a3a3c;
     }
     [data-testid="stSidebar"] .stRadio label:hover {
-        background: rgba(37, 99, 235, 0.06); color: #1a4a8a;
+        background: rgba(0,122,255,0.07);
+        color: #007AFF;
     }
-    [data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {font-size: 0.9rem;}
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label[data-baseweb="radio"] > div:first-child {
+        display: none;
+    }
+    [data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
+        font-size: 0.88rem;
+    }
 
+    /* ── 卡片 ── */
     .card {
-        background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
-        border-radius: 16px; padding: 1.8rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
-        border: 1px solid rgba(255,255,255,0.8); margin-bottom: 1.2rem;
-        transition: box-shadow 0.2s;
+        background: #ffffff;
+        border-radius: 14px;
+        padding: 1.5rem 1.8rem;
+        border: none;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.03), 0 2px 4px rgba(0,0,0,0.04);
+        margin-bottom: 1.2rem;
     }
-    .card:hover {box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);}
     .card-title {
-        font-size: 1.1rem; font-weight: 700; color: #0f2b5c;
-        margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;
-        letter-spacing: 0.3px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        font-size: 1.05rem; font-weight: 600;
+        color: #1d1d1f;
+        margin-bottom: 1.2rem;
+        display: flex; align-items: center; gap: 0.5rem;
+        letter-spacing: -0.3px;
     }
 
+    /* ── 主操作按钮 ── */
     div.stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #1a4a8a, #2563eb);
-        border: none; color: white; font-weight: 600; height: 2.8rem; border-radius: 10px;
-        transition: all 0.25s;
-        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
-        letter-spacing: 0.5px; font-size: 0.9rem;
+        background: #007AFF;
+        border: none;
+        color: white;
+        font-weight: 500;
+        height: 2.6rem;
+        border-radius: 8px;
+        transition: all 0.15s;
+        font-size: 0.9rem;
     }
     div.stButton > button[kind="primary"]:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+        background: #0066d6;
+        box-shadow: 0 2px 8px rgba(0,122,255,0.3);
     }
-    div.stButton > button[kind="primary"]:active {transform: translateY(0);}
+    div.stButton > button[kind="primary"]:active {
+        transform: scale(0.97);
+    }
 
+    /* ── 统计卡片 ── */
     .stat-card {
-        background: linear-gradient(135deg, #ffffff, #f8faff);
-        border-radius: 14px; padding: 1.3rem 1rem; text-align: center;
-        border: 1px solid #eef0f4;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-        transition: all 0.25s; position: relative; overflow: hidden;
-    }
-    .stat-card::before {
-        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-        background: linear-gradient(90deg, #2563eb, #60a5fa);
-        opacity: 0; transition: opacity 0.25s;
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.2rem 0.8rem;
+        text-align: center;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.03), 0 1px 3px rgba(0,0,0,0.03);
+        transition: all 0.2s;
     }
     .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.06);
+        transform: translateY(-1px);
     }
-    .stat-card:hover::before {opacity: 1;}
     .stat-card .num {
-        font-size: 1.8rem; font-weight: 800;
-        background: linear-gradient(135deg, #1a4a8a, #2563eb);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        background-clip: text; line-height: 1.2;
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        font-size: 1.7rem; font-weight: 700;
+        color: #007AFF;
+        line-height: 1.2;
     }
-    .stat-card .label {font-size: 0.8rem; font-weight: 500; color: #6b7280; margin-top: 0.3rem;}
-    .stat-card .sublabel {font-size: 0.7rem; color: #9ca3af; margin-top: 0.2rem;}
+    .stat-card .label {
+        font-size: 0.78rem; font-weight: 500;
+        color: #8e8e93; margin-top: 0.2rem;
+    }
+    .stat-card .sublabel {
+        font-size: 0.68rem; color: #aeaeb2; margin-top: 0.15rem;
+    }
 
+    /* ── 数据表格 ── */
     [data-testid="stDataFrame"] {
-        border-radius: 12px; border: 1px solid #eef0f4;
-        overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        border-radius: 10px;
+        border: 1px solid rgba(0,0,0,0.06);
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
     }
     [data-testid="stDataFrame"] thead tr th {
-        background: #f8faff !important; font-weight: 600 !important;
-        color: #1e293b !important; font-size: 0.8rem !important;
-        text-transform: uppercase; letter-spacing: 0.5px;
-        padding: 0.75rem 1rem !important;
+        background: #fafafa !important;
+        font-weight: 600 !important;
+        color: #1d1d1f !important;
+        font-size: 0.78rem !important;
+        padding: 0.6rem 1rem !important;
+        border-bottom: 1px solid #e5e5ea !important;
     }
-    [data-testid="stDataFrame"] tbody tr:hover td {background: #f0f5ff !important;}
+    [data-testid="stDataFrame"] tbody tr:hover td {background: #f2f2f7 !important;}
+    [data-testid="stDataFrame"] tbody td {
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+    }
 
-    .streamlit-expanderHeader {font-weight: 600; color: #1e293b; border-radius: 8px;}
+    /* ── expander ── */
+    .streamlit-expanderHeader {
+        font-weight: 500; color: #1d1d1f;
+        border-radius: 8px;
+        background: #fafafa;
+    }
 
+    /* ── Footer ── */
     .footer {
         text-align: center; padding: 2rem 0 0.5rem 0;
-        color: #b0b8c4; font-size: 0.7rem; line-height: 1.8;
-        border-top: 1px solid #eef0f4; margin-top: 2.5rem;
+        color: #aeaeb2; font-size: 0.68rem; line-height: 1.8;
+        border-top: 1px solid rgba(0,0,0,0.05);
+        margin-top: 2.5rem;
     }
-    .footer a {color: #94a3b8; text-decoration: none; transition: color 0.2s;}
-    .footer a:hover {color: #2563eb;}
+    .footer a {color: #8e8e93; text-decoration: none; transition: color 0.15s;}
+    .footer a:hover {color: #007AFF;}
 
+    /* ── 进度条 ── */
     div.stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #2563eb, #60a5fa, #93c5fd);
-        background-size: 200% 100%;
-        animation: shimmer 1.5s ease-in-out infinite;
-    }
-    @keyframes shimmer {
-        0%, 100% {background-position: 0% 50%;}
-        50% {background-position: 100% 50%;}
+        background: linear-gradient(90deg, #007AFF, #34a853);
+        border-radius: 4px;
     }
 
-    div[data-testid="stNumberInput"] label {font-size: 0.85rem; color: #475569; font-weight: 500;}
-    div[data-testid="stNumberInput"] input {border-radius: 8px;}
-
+    /* ── 输入框 ── */
     div[data-testid="stTextInput"] input {
-        border-radius: 10px; border: 1px solid #e2e8f0;
-        padding: 0.6rem 1rem; font-size: 0.95rem;
-        transition: border-color 0.2s, box-shadow 0.2s;
+        border-radius: 8px;
+        border: 1px solid #d1d1d6;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.9rem;
+        transition: border-color 0.15s;
     }
     div[data-testid="stTextInput"] input:focus {
-        border-color: #2563eb;
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        border-color: #007AFF;
+        box-shadow: 0 0 0 3px rgba(0,122,255,0.12);
     }
 
-    div[data-testid="stMultiSelect"] > div > div {border-radius: 10px; border-color: #e2e8f0;}
+    div[data-testid="stNumberInput"] label {font-size: 0.82rem; color: #3a3a3c; font-weight: 500;}
+    div[data-testid="stNumberInput"] input {border-radius: 8px;}
 
-    .stAlert {border-radius: 12px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03);}
+    div[data-testid="stMultiSelect"] > div > div {border-radius: 8px; border-color: #d1d1d6;}
+
+    .stAlert {border-radius: 10px; border: none;}
 
     div.stDownloadButton > button {
-        border-radius: 10px; font-weight: 500; transition: all 0.2s;
+        border-radius: 8px; font-weight: 500;
+        transition: all 0.15s;
+        border: 1px solid #d1d1d6;
     }
-    div.stDownloadButton > button:hover {transform: translateY(-1px);}
+    div.stDownloadButton > button:hover {
+        border-color: #007AFF;
+        color: #007AFF;
+    }
 
-    .stCaption {color: #6b7280; font-size: 0.8rem;}
-
-    .stSpinner > div {border-color: #2563eb !important;}
+    .stCaption {color: #8e8e93; font-size: 0.78rem;}
 </style>""",
     unsafe_allow_html=True,
 )
 
-# ── Session 状态初始化 ────────────────────────────────
-if "tc_loaded" not in st.session_state:
-    st.session_state.tc_loaded = False
-    st.session_state.tc_committees = []
+# ── Session 状态 ─────────────────────────────────────
+if "tc_dict" not in st.session_state:
     st.session_state.tc_dict = {}
 if "search_results" not in st.session_state:
     st.session_state.search_results = None
+    st.session_state.search_by_category = {}
     st.session_state.search_summary = ""
 
 
@@ -220,8 +288,21 @@ def load_tc_committees():
     return committees, {c["name"]: c["code"] for c in committees}
 
 
+# ── 多 Sheet Excel 导出 ─────────────────────────────
+def make_multisheet_excel(sheet_dict: Dict[str, pd.DataFrame]) -> bytes:
+    """生成多 Sheet Excel 文件的 bytes。"""
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        for sheet_name, df in sheet_dict.items():
+            # Excel sheet name 不能超 31 字符
+            safe_name = sheet_name[:31]
+            df_renamed = rename_cols(df)
+            df_renamed.to_excel(writer, sheet_name=safe_name, index=False)
+    return output.getvalue()
+
+
 # ── 统计卡片 ──────────────────────────────────────────
-def show_stats(df):
+def show_stats(df: pd.DataFrame, has_tc_info: bool = False):
     cols = st.columns(4)
     with cols[0]:
         st.markdown(
@@ -231,10 +312,7 @@ def show_stats(df):
         )
     with cols[1]:
         cats = df["category"].value_counts()
-        cat_names = {k: v["name"] for k, v in CATEGORY_CONFIG.items()}
-        label = " · ".join(
-            f"{cat_names.get(k, k)} {v}" for k, v in cats.head(3).items()
-        )
+        label = " · ".join(f"{CAT_NAME_MAP.get(k, k)} {v}" for k, v in cats.head(3).items())
         st.markdown(
             f'<div class="stat-card"><div class="num">{len(cats)}</div>'
             f'<div class="label">标准类别</div>'
@@ -251,7 +329,7 @@ def show_stats(df):
             unsafe_allow_html=True,
         )
     with cols[3]:
-        if "tc_code" in df.columns and df["tc_code"].str.len().sum() > 0:
+        if has_tc_info and "tc_code" in df.columns and df["tc_code"].str.len().sum() > 0:
             tcs = df["tc_code"].value_counts()
             valid = tcs[tcs.index != ""]
             label = " · ".join(f"{k}" for k in valid.head(3).index)
@@ -283,36 +361,52 @@ def show_footer():
     st.markdown(FOOTER_HTML, unsafe_allow_html=True)
 
 
-# ── 结果数据框 + 下载 ───────────────────────────────
-def show_results(df, filename_base):
+# ── 结果展示（去重 + 中文表头 + Excel 多 Sheet）─────
+def show_results(sheet_dict: Dict[str, pd.DataFrame], filename_base: str):
+    """sheet_dict: {sheet_label: DataFrame}"""
+    if not sheet_dict:
+        return
+
+    # 合并所有 sheet 用于总览
+    all_df = pd.concat(sheet_dict.values(), ignore_index=True)
+
+    # ── 去重 (按标准号，去掉空标准号的重复行) ──
+    dup_mask = all_df["standard_code"].duplicated(keep="first")
+    drop_mask = dup_mask & (all_df["standard_code"] != "")
+    dups_removed = drop_mask.sum()
+    all_df = all_df[~drop_mask].reset_index(drop=True)
+
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="card-title">📊 检索结果（共 {len(df)} 条）</div>',
+        f'<div class="card-title">📊 检索结果（共 {len(all_df)} 条）</div>',
         unsafe_allow_html=True,
     )
 
-    # 内联筛选
+    if dups_removed:
+        st.caption(f"已去重 {dups_removed} 条重复标准")
+
+    # ── 筛选 ──
     with st.expander("🔍 筛选结果", expanded=False):
         filter_cols = st.columns(4)
         filters = {}
-        for i, col_name in enumerate(
-            ["standard_code", "standard_name", "state", "charge_dept"]
-        ):
-            if col_name in df.columns and df[col_name].nunique() > 1:
-                vals = [""] + sorted(df[col_name].dropna().unique().tolist())
+        for i, col_name in enumerate(["standard_code", "standard_name", "state", "charge_dept"]):
+            if col_name in all_df.columns and all_df[col_name].nunique() > 1:
+                vals = [""] + sorted(all_df[col_name].dropna().unique().tolist())
                 filters[col_name] = filter_cols[i % 4].selectbox(
-                    col_name, vals, key=f"filter_{col_name}"
+                    COLUMN_LABELS.get(col_name, col_name), vals, key=f"filter_{col_name}"
                 )
 
-    filtered = df.copy()
+    filtered = all_df.copy()
     for col_name, val in filters.items():
         if val:
             filtered = filtered[filtered[col_name] == val]
 
-    col_left, col_right = st.columns([1, 1])
+    has_tc = "tc_code" in all_df.columns and all_df["tc_code"].str.len().sum() > 0
+
+    col_left, col_mid, col_right = st.columns([2, 1, 1])
     with col_left:
         st.caption(f"当前筛选后: {len(filtered)} 条")
-    with col_right:
+    with col_mid:
         csv = filtered.to_csv(index=False).encode("utf-8-sig")
         now = time.strftime("%Y%m%d_%H%M%S")
         st.download_button(
@@ -321,11 +415,23 @@ def show_results(df, filename_base):
             f"{filename_base}_{now}.csv",
             "text/csv",
         )
+    with col_right:
+        # 多 Sheet Excel 下载
+        if len(sheet_dict) > 1:
+            excel_bytes = make_multisheet_excel(sheet_dict)
+            st.download_button(
+                "📥 下载 Excel",
+                excel_bytes,
+                f"{filename_base}_{now}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
 
-    st.dataframe(filtered, width="stretch", height=500)
+    # 显示表格（中文表头）
+    display_df = rename_cols(filtered)
+    st.dataframe(display_df, width="stretch", height=500)
 
     with st.expander("📈 统计概览"):
-        show_stats(filtered)
+        show_stats(filtered, has_tc_info=has_tc)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -363,7 +469,7 @@ st.markdown(
         <td width="50"><span class="hero-icon">📋</span></td>
         <td>
             <h1>全国标准信息检索平台</h1>
-            <p>从全国标准信息公共服务平台检索标准数据，支持关键词检索和 TC 标委会检索</p>
+            <p>从全国标准信息公共服务平台检索标准数据</p>
         </td>
     </tr></table>
 </div>
@@ -420,35 +526,52 @@ if "关键词" in mode:
             st.warning("请选择至少一个标准类别")
             st.stop()
 
-        results = []
+        results_by_cat: Dict[str, list] = {}
         bar = st.progress(0, text="准备中...")
         status = st.empty()
 
         for i, cat in enumerate(categories):
             name = CATEGORY_CONFIG[cat]["name"]
-            status.info(f"正在检索 {name}...")
-            count = 0
+
+            # 预先获取总数
+            total = get_search_total(cat, keyword.strip(), page_size=page_size)
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
+            status.info(f"正在检索 {name}（共 {total} 条，{total_pages} 页）...")
+            results = []
+            page = 1
             for row in iter_keyword_results(cat, keyword.strip(), page_size=page_size, max_pages=max_pages):
                 results.append(row)
-                count += 1
-            bar.progress((i + 1) / len(categories), text=f"已完成 {name}（{count} 条）")
+                if len(results) % page_size == 1:
+                    status.info(f"正在检索 {name}... 第 {page}/{total_pages or '?'} 页（已获取 {len(results)} 条）")
+                    page += 1
+
+            results_by_cat[name] = results
+            bar.progress(
+                (i + 1) / len(categories),
+                text=f"已完成 {name}（{len(results)} 条）",
+            )
             time.sleep(0.3)
 
         bar.empty()
         status.empty()
 
-        if results:
-            df = pd.DataFrame(results)
-            st.session_state.search_results = df
+        if any(rows for rows in results_by_cat.values()):
+            sheet_dict = {}
+            for cat_name, rows in results_by_cat.items():
+                if rows:
+                    sheet_dict[cat_name] = pd.DataFrame(rows)
+
+            st.session_state.search_results = sheet_dict
             st.session_state.search_summary = f"关键词「{keyword}」"
-            show_results(df, keyword.strip())
+            show_results(sheet_dict, keyword.strip())
         else:
             st.warning("未找到匹配结果，请尝试其他关键词或类别。")
 
     elif st.session_state.search_results is not None:
         st.info(
             f"上次检索结果：{st.session_state.search_summary}，"
-            f"共 {len(st.session_state.search_results)} 条"
+            f"共 {sum(len(v) for v in st.session_state.search_results.values())} 条"
         )
         if st.button("📂 显示上次结果"):
             show_results(
@@ -496,30 +619,44 @@ elif "TC 标委会检索" in mode:
             st.warning("请选择至少一个 TC 标委会")
             st.stop()
 
-        results = []
+        results_by_tc: Dict[str, list] = {}
         bar = st.progress(0, text="准备中...")
         status = st.empty()
 
         for i, name in enumerate(selected_names):
             code = tc_dict[name]
-            status.info(f"正在检索 {name}（{code}）...")
-            count = 0
+
+            # 预先获取总数
+            total = get_tc_search_total(code, page_size=page_size)
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
+            status.info(f"正在检索 {name}（{code}，共 {total} 条，{total_pages} 页）...")
+            results = []
+            page = 1
             for row in iter_tc_results(code, page_size=page_size):
                 results.append(row)
-                count += 1
+                if len(results) % page_size == 1:
+                    status.info(f"正在检索 {name}... 第 {page}/{total_pages or '?'} 页（已获取 {len(results)} 条）")
+                    page += 1
+
+            results_by_tc[name] = results
             bar.progress(
                 (i + 1) / len(selected_names),
-                text=f"已完成 {name}（{count} 条）",
+                text=f"已完成 {name}（{len(results)} 条）",
             )
             time.sleep(0.3)
 
         bar.empty()
         status.empty()
 
-        if results:
-            df = pd.DataFrame(results)
+        if any(rows for rows in results_by_tc.values()):
+            sheet_dict = {}
+            for tc_name, rows in results_by_tc.items():
+                if rows:
+                    sheet_dict[tc_name] = pd.DataFrame(rows)
+
             short = "_".join(selected_names[:2]).replace(" ", "")[:50]
-            show_results(df, short)
+            show_results(sheet_dict, short)
         else:
             st.warning("未找到匹配结果。")
 
