@@ -67,7 +67,7 @@ def main():
     # 延迟打开浏览器
     threading.Thread(target=open_browser, args=(url,), daemon=True).start()
 
-    # 直接使用 Streamlit CLI，避免 PyInstaller 环境下 subprocess 重启动问题
+    # 直接使用 Streamlit CLI 启动，避免 PyInstaller 下 subprocess 无限重启动
     from streamlit.web import cli as st_cli
 
     sys.argv = [
@@ -84,11 +84,17 @@ def main():
         "false",
         "--server.fileWatcherType",
         "none",
+        "--global.developmentMode",
+        "false",
     ]
     try:
         st_cli.main()
     except SystemExit:
         pass
+    except Exception as e:
+        print(f"\n启动失败: {e}")
+        print("请尝试关闭其他程序后重试，或检查端口 8501 是否被占用。")
+        input("\n按 Enter 退出...")
 
 
 if __name__ == "__main__":
