@@ -65,7 +65,7 @@ def show_stats(df):
         )
     with col2:
         cats = df["category"].value_counts()
-        cat_names = {c["code"]: c["name"] for c in CATEGORY_CONFIG.values()}
+        cat_names = {k: v["name"] for k, v in CATEGORY_CONFIG.items()}
         label = ", ".join(
             f"{cat_names.get(k, k)} {v}" for k, v in cats.head(3).items()
         )
@@ -136,10 +136,10 @@ def show_results(df, filename_base):
             csv,
             f"{filename_base}_{now}.csv",
             "text/csv",
-            use_container_width=True,
+            width="stretch",
         )
 
-    st.dataframe(filtered, use_container_width=True, height=500)
+    st.dataframe(filtered, width="stretch", height=500)
 
     with st.expander("📈 统计概览"):
         show_stats(filtered)
@@ -214,7 +214,7 @@ if "关键词" in mode:
                 help="限制抓取页数以节省时间",
             )
 
-        search_clicked = st.button("🚀 开始检索", type="primary", use_container_width=True)
+        search_clicked = st.button("🚀 开始检索", type="primary", width="stretch")
 
     if search_clicked:
         if not keyword.strip():
@@ -294,7 +294,7 @@ elif "TC 标委会检索" in mode:
         )
 
         tc_search_clicked = st.button(
-            "🚀 开始检索", type="primary", use_container_width=True
+            "🚀 开始检索", type="primary", width="stretch"
         )
 
     if tc_search_clicked:
@@ -366,7 +366,7 @@ elif "TC 标委会列表" in mode:
 
         st.dataframe(
             df_tc,
-            use_container_width=True,
+            width="stretch",
             height=600,
             column_config={
                 "code": st.column_config.TextColumn("编号", width="small"),
