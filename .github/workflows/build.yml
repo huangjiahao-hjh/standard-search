@@ -1,0 +1,70 @@
+name: 构建可执行文件
+
+on:
+  push:
+    tags:
+      - 'v*'  # 推送版本标签时自动构建，如 v1.0
+  workflow_dispatch:  # 也可手动触发
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: 打包
+        run: |
+          pyinstaller --name "标准信息检索平台" --noconfirm --clean --windowed --onedir `
+            --add-data "app.py;." --add-data "scraper.py;." `
+            --hidden-import streamlit --hidden-import pandas --hidden-import requests --hidden-import bs4 `
+            --hidden-import lxml --hidden-import html5lib `
+            --hidden-import streamlit.web.cli --hidden-import streamlit.runtime.scriptrunner.magic_funcs `
+            --collect-all streamlit --collect-all pandas `
+            launcher.py
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: 标准信息检索平台-Windows
+          path: dist/标准信息检索平台/
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: 打包
+        run: |
+          pyinstaller --name "标准信息检索平台" --noconfirm --clean --windowed --onedir \
+            --add-data "app.py:." --add-data "scraper.py:." \
+            --hidden-import streamlit --hidden-import pandas --hidden-import requests --hidden-import bs4 \
+            --hidden-import lxml --hidden-import html5lib \
+            --hidden-import streamlit.web.cli --hidden-import streamlit.runtime.scriptrunner.magic_funcs \
+            --collect-all streamlit --collect-all pandas \
+            launcher.py
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: 标准信息检索平台-macOS
+          path: dist/标准信息检索平台/
