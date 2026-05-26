@@ -26,147 +26,180 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    /* ── 全局重置 ── */
-    .stApp {background: #f5f7fb;}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+    * {font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;}
+    .stApp {background: linear-gradient(135deg, #f0f4f8 0%, #e8edf5 100%);}
     .stApp header {display: none;}
 
-    /* ── 主容器 ── */
-    .main-container {max-width: 1400px; margin: 0 auto;}
+    ::-webkit-scrollbar {width: 6px; height: 6px;}
+    ::-webkit-scrollbar-track {background: transparent;}
+    ::-webkit-scrollbar-thumb {background: #c1c9d6; border-radius: 3px;}
+    ::-webkit-scrollbar-thumb:hover {background: #a0aab8;}
 
-    /* ── 顶部横幅 ── */
+    .main-container {max-width: 1400px; margin: 0 auto; padding: 0 0.5rem;}
+
     .hero {
-        background: linear-gradient(135deg, #1a3a6b 0%, #2563ac 50%, #3b82f6 100%);
-        border-radius: 16px;
-        padding: 2rem 2.5rem;
-        margin-bottom: 1.5rem;
-        color: white;
-        box-shadow: 0 4px 20px rgba(37, 99, 172, 0.25);
+        background: linear-gradient(135deg, #0f2b5c 0%, #1a4a8a 40%, #2563eb 70%, #3b82f6 100%);
+        border-radius: 20px; padding: 2.2rem 2.8rem; margin-bottom: 2rem;
+        color: white; position: relative; overflow: hidden;
+        box-shadow: 0 8px 32px rgba(37, 99, 235, 0.25);
     }
+    .hero::before {
+        content: ''; position: absolute; top: -50%; right: -20%;
+        width: 500px; height: 500px;
+        background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+    .hero::after {
+        content: ''; position: absolute; bottom: -30%; left: 10%;
+        width: 300px; height: 300px;
+        background: radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+    .hero table {position: relative; z-index: 1;}
     .hero h1 {
-        font-size: 1.9rem;
-        font-weight: 700;
-        margin: 0 0 0.3rem 0;
-        letter-spacing: 1px;
+        font-size: 2rem; font-weight: 800; margin: 0 0 0.3rem 0; letter-spacing: 1.5px;
+        background: linear-gradient(90deg, #fff, #bfd8ff);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
-    .hero p {
-        font-size: 0.95rem;
-        margin: 0;
-        opacity: 0.85;
-        font-weight: 300;
-    }
+    .hero p {font-size: 0.95rem; margin: 0; opacity: 0.8; font-weight: 300; color: #e0e8ff;}
     .hero-icon {
-        font-size: 2.5rem;
-        line-height: 1;
+        font-size: 2.8rem; line-height: 1; display: block; text-align: center;
+        filter: drop-shadow(0 2px 8px rgba(255,255,255,0.2));
     }
 
-    /* ── 侧边栏 ── */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #f8faff 0%, #eef3fc 100%);
-        border-right: 1px solid #e5e9f0;
+        background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+        border-right: 1px solid #e5e9f0; padding-top: 1rem;
     }
     [data-testid="stSidebar"] .sidebar-title {
-        font-size: 1.2rem;
-        font-weight: 700;
-        color: #1a3a6b;
-        padding: 0.5rem 0;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        font-size: 1.15rem; font-weight: 700; color: #0f2b5c;
+        padding: 0.8rem 0.5rem; display: flex; align-items: center; gap: 0.5rem;
+        border-bottom: 2px solid #eef3fc; margin-bottom: 0.5rem;
     }
+    [data-testid="stSidebar"] .stRadio > div {gap: 0.2rem;}
+    [data-testid="stSidebar"] .stRadio label {
+        padding: 0.6rem 1rem; border-radius: 10px; transition: all 0.2s;
+        font-weight: 500; color: #4b5563;
+    }
+    [data-testid="stSidebar"] .stRadio label:hover {
+        background: rgba(37, 99, 235, 0.06); color: #1a4a8a;
+    }
+    [data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {font-size: 0.9rem;}
 
-    /* ── 卡片容器 ── */
     .card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-        border: 1px solid #eef0f4;
-        margin-bottom: 1rem;
+        background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+        border-radius: 16px; padding: 1.8rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+        border: 1px solid rgba(255,255,255,0.8); margin-bottom: 1.2rem;
+        transition: box-shadow 0.2s;
     }
+    .card:hover {box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);}
     .card-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #1e293b;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        font-size: 1.1rem; font-weight: 700; color: #0f2b5c;
+        margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;
+        letter-spacing: 0.3px;
     }
 
-    /* ── 搜索按钮 ── */
     div.stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #2563ac, #3b82f6);
-        border: none;
-        color: white;
-        font-weight: 600;
-        height: 2.8rem;
-        border-radius: 8px;
-        transition: all 0.2s;
-        box-shadow: 0 2px 8px rgba(37, 99, 172, 0.2);
+        background: linear-gradient(135deg, #1a4a8a, #2563eb);
+        border: none; color: white; font-weight: 600; height: 2.8rem; border-radius: 10px;
+        transition: all 0.25s;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+        letter-spacing: 0.5px; font-size: 0.9rem;
     }
     div.stButton > button[kind="primary"]:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 14px rgba(37, 99, 172, 0.35);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
     }
+    div.stButton > button[kind="primary"]:active {transform: translateY(0);}
 
-    /* ── 统计卡片 ── */
-    .stat-grid {display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;}
     .stat-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.2rem 1rem;
-        text-align: center;
+        background: linear-gradient(135deg, #ffffff, #f8faff);
+        border-radius: 14px; padding: 1.3rem 1rem; text-align: center;
         border: 1px solid #eef0f4;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        transition: transform 0.15s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        transition: all 0.25s; position: relative; overflow: hidden;
     }
-    .stat-card:hover {transform: translateY(-2px);}
+    .stat-card::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+        background: linear-gradient(90deg, #2563eb, #60a5fa);
+        opacity: 0; transition: opacity 0.25s;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
+    .stat-card:hover::before {opacity: 1;}
     .stat-card .num {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #2563ac;
-        line-height: 1.2;
+        font-size: 1.8rem; font-weight: 800;
+        background: linear-gradient(135deg, #1a4a8a, #2563eb);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background-clip: text; line-height: 1.2;
     }
-    .stat-card .label {
-        font-size: 0.8rem;
-        color: #6b7280;
-        margin-top: 0.25rem;
-    }
-    .stat-card .sublabel {
-        font-size: 0.7rem;
-        color: #9ca3af;
-    }
+    .stat-card .label {font-size: 0.8rem; font-weight: 500; color: #6b7280; margin-top: 0.3rem;}
+    .stat-card .sublabel {font-size: 0.7rem; color: #9ca3af; margin-top: 0.2rem;}
 
-    /* ── 数据表格 ── */
     [data-testid="stDataFrame"] {
-        border-radius: 8px;
-        border: 1px solid #eef0f4;
-        overflow: hidden;
+        border-radius: 12px; border: 1px solid #eef0f4;
+        overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.03);
     }
+    [data-testid="stDataFrame"] thead tr th {
+        background: #f8faff !important; font-weight: 600 !important;
+        color: #1e293b !important; font-size: 0.8rem !important;
+        text-transform: uppercase; letter-spacing: 0.5px;
+        padding: 0.75rem 1rem !important;
+    }
+    [data-testid="stDataFrame"] tbody tr:hover td {background: #f0f5ff !important;}
 
-    /* ── Footer ── */
+    .streamlit-expanderHeader {font-weight: 600; color: #1e293b; border-radius: 8px;}
+
     .footer {
-        text-align: center;
-        padding: 2rem 0 0.5rem 0;
-        color: #b0b8c4;
-        font-size: 0.7rem;
-        line-height: 1.6;
-        border-top: 1px solid #eef0f4;
-        margin-top: 2.5rem;
+        text-align: center; padding: 2rem 0 0.5rem 0;
+        color: #b0b8c4; font-size: 0.7rem; line-height: 1.8;
+        border-top: 1px solid #eef0f4; margin-top: 2.5rem;
     }
-    .footer a {
-        color: #94a3b8;
-        text-decoration: none;
+    .footer a {color: #94a3b8; text-decoration: none; transition: color 0.2s;}
+    .footer a:hover {color: #2563eb;}
+
+    div.stProgress > div > div > div > div {
+        background: linear-gradient(90deg, #2563eb, #60a5fa, #93c5fd);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s ease-in-out infinite;
     }
-    .footer a:hover {color: #2563ac;}
+    @keyframes shimmer {
+        0%, 100% {background-position: 0% 50%;}
+        50% {background-position: 100% 50%;}
+    }
 
-    /* ── 进度条 ── */
-    div.stProgress > div > div > div > div {background: linear-gradient(90deg, #2563ac, #60a5fa);}
+    div[data-testid="stNumberInput"] label {font-size: 0.85rem; color: #475569; font-weight: 500;}
+    div[data-testid="stNumberInput"] input {border-radius: 8px;}
 
-    /* ── 数字输入美化 ── */
-    div[data-testid="stNumberInput"] label {font-size: 0.85rem; color: #475569;}
-</style>
-""",
+    div[data-testid="stTextInput"] input {
+        border-radius: 10px; border: 1px solid #e2e8f0;
+        padding: 0.6rem 1rem; font-size: 0.95rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    div[data-testid="stTextInput"] input:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    div[data-testid="stMultiSelect"] > div > div {border-radius: 10px; border-color: #e2e8f0;}
+
+    .stAlert {border-radius: 12px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03);}
+
+    div.stDownloadButton > button {
+        border-radius: 10px; font-weight: 500; transition: all 0.2s;
+    }
+    div.stDownloadButton > button:hover {transform: translateY(-1px);}
+
+    .stCaption {color: #6b7280; font-size: 0.8rem;}
+
+    .stSpinner > div {border-color: #2563eb !important;}
+</style>""",
     unsafe_allow_html=True,
 )
 
@@ -241,7 +274,7 @@ FOOTER_HTML = """
 <div class="footer">
     注：本平台仅用于标准信息查询与学习研究，请勿恶意爬取或攻击。<br>
     作者：JiaHao Huang ｜ 联系邮箱：
-    <a href="mailto:huangkaiquwan@gmail.com">huangkaiquwan@gmail.com</a>
+    <a href="mailto:huakaiquwan@gmail.com">huakaiquwan@gmail.com</a>
 </div>
 """
 
