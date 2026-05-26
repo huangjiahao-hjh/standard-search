@@ -6,18 +6,14 @@
 
 import os
 import sys
-import subprocess
 import threading
 import time
 import webbrowser
-import signal
-import atexit
 
 
 def get_base_dir():
     """获取程序所在目录（支持 PyInstaller 打包后的路径）。"""
     if getattr(sys, "frozen", False):
-        # PyInstaller 打包后
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
@@ -31,7 +27,6 @@ def find_app_path(base_dir):
     for path in candidates:
         if os.path.exists(path):
             return path
-    # 最后一搏：在打包后的 _internal 目录找
     for root, _dirs, files in os.walk(base_dir):
         if "app.py" in files:
             return os.path.join(root, "app.py")
@@ -72,32 +67,28 @@ def main():
     # 延迟打开浏览器
     threading.Thread(target=open_browser, args=(url,), daemon=True).start()
 
+    # 直接使用 Streamlit CLI，避免 PyInstaller 环境下 subprocess 重启动问题
+    from streamlit.web import cli as st_cli
+
+    sys.argv = [
+        "streamlit",
+        "run",
+        app_path,
+        "--server.port",
+        str(port),
+        "--server.headless",
+        "true",
+        "--server.enableXsrfProtection",
+        "false",
+        "--browser.gatherUsageStats",
+        "false",
+        "--server.fileWatcherType",
+        "none",
+    ]
     try:
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "streamlit",
-                "run",
-                app_path,
-                "--server.port",
-                str(port),
-                "--server.headless",
-                "true",
-                "--server.enableXsrfProtection",
-                "false",
-                "--browser.gatherUsageStats",
-                "false",
-            ],
-            cwd=base_dir,
-        )
-        if result.returncode != 0:
-            print(f"\n进程退出，代码: {result.returncode}")
-    except KeyboardInterrupt:
-        print("\n正在关闭...")
-    except Exception as e:
-        print(f"\n发生错误: {e}")
-        input("\n按 Enter 退出...")
+        st_cli.main()
+    except SystemExit:
+        pass
 
 
 if __name__ == "__main__":
